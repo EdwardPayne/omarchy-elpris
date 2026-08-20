@@ -24,6 +24,17 @@ tomorrow so you know when to run the dishwasher.
 omarchy plugin add https://github.com/antoniowav/omarchy-elpris.git --enable
 ```
 
+## Remove
+
+```bash
+omarchy plugin remove io.github.antoniowav.elpris
+```
+
+## Dependencies
+
+None beyond what Omarchy ships: `curl` for fetching prices, rendered by the
+Omarchy Quattro shell. No accounts, no API keys, no telemetry.
+
 ## Configure
 
 Open the bar settings for the widget to set your price zone (SE1 Luleå,
