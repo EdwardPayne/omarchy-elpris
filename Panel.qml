@@ -1,0 +1,430 @@
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.Commons
+import qs.Ui
+import "Model.js" as Model
+
+Panel {
+  id: root
+  moduleName: "io.github.antoniowav.elpris"
+  ipcTarget: "io.github.antoniowav.elpris"
+  manageIpc: false
+
+  property var anchorItem: null
+  property bool openedFromHotkey: false
+  property var hostWidget: null
+  readonly property var barIdentity: hostWidget || root
+
+  function open() {
+    openedFromHotkey = false
+    root.controller.show()
+    root.refresh()
+  }
+
+  function openFromHotkey() {
+    openedFromHotkey = true
+    root.controller.show()
+    root.refresh()
+  }
+
+  function close() {
+    root.controller.hide()
+  }
+
+  function toggle() {
+    if (root.opened) root.close()
+    else root.openFromHotkey()
+  }
+
+  function switchPanel(direction) {
+    if (root.bar && typeof root.bar.switchPanelFrom === "function")
+      return root.bar.switchPanelFrom(root.barIdentity, direction)
+    return false
+  }
+
+  // Raw quarter-hour entries per day. Kept on failure so stale prices stay
+  // visible; tomorrow is empty until Nord Pool publishes around 13:00.
+  property var todayEntries: []
+  property var tomorrowEntries: []
+  property int todayRetries: 0
+  property double nowMs: Date.now()
+
+  readonly property string zone: Model.normalizedZone(setting("zone", "SE3"))
+  readonly property bool ore: Model.useOre(setting("unit", "kr"))
+
+  onZoneChanged: {
+    todayEntries = []
+    tomorrowEntries = []
+    Qt.callLater(refresh)
+  }
+
+  readonly property var current: Model.currentEntry(todayEntries, nowMs)
+  readonly property var todayStats: Model.stats(todayEntries)
+  readonly property var todayHours: Model.hourly(todayEntries)
+  readonly property var tomorrowHours: Model.hourly(tomorrowEntries)
+  readonly property var tomorrowStats: Model.stats(tomorrowEntries)
+  readonly property int currentLevel: current && todayStats ? Model.levelFor(current.sek, todayStats) : 1
+
+  // Shared scale across both charts so today and tomorrow are comparable.
+  readonly property double chartMax: Math.max(todayStats ? todayStats.max : 0, tomorrowStats ? tomorrowStats.max : 0, 0.0001)
+
+  readonly property string barLabel: current ? ("⌁ " + Model.fmtShort(current.sek, ore)) : ""
+
+  readonly property color cheapColor: "#69b076"
+  readonly property color expensiveColor: "#d0764f"
+
+  function levelColor(level) {
+    if (level === 0) return cheapColor
+    if (level === 2) return expensiveColor
+    return root.bar ? root.bar.foreground : Style.palette.foreground
+  }
+
+  function fmt(sek) {
+    return Model.fmt(sek, ore)
+  }
+
+  function refresh() {
+    todayRetries = 0
+    nowMs = Date.now()
+    if (!todayProc.running) {
+      todayProc.command = ["curl", "-fsS", "--max-time", "10", Model.apiUrl(zone, new Date())]
+      todayProc.running = true
+    }
+    if (!tomorrowProc.running) {
+      tomorrowProc.command = ["curl", "-fsS", "--max-time", "10", Model.apiUrl(zone, new Date(Date.now() + 86400000))]
+      tomorrowProc.running = true
+    }
+  }
+
+  function scheduleTodayRetry() {
+    if (todayRetries >= 3) return
+    todayRetries++
+    retryTimer.restart()
+  }
+
+  Process {
+    id: todayProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var parsed = Model.parseDay(text)
+        if (parsed.length > 0) {
+          root.todayEntries = parsed
+          root.todayRetries = 0
+        } else {
+          root.scheduleTodayRetry()
+        }
+      }
+    }
+  }
+
+  // Tomorrow 404s until publication; that's normal, never retried here. The
+  // half-hour refresh timer picks it up once it exists.
+  Process {
+    id: tomorrowProc
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.tomorrowEntries = Model.parseDay(text)
+      }
+    }
+  }
+
+  Timer {
+    id: retryTimer
+    interval: 2500
+    onTriggered: if (!todayProc.running) todayProc.running = true
+  }
+
+  // Prices are static once published; refetching half-hourly is only for
+  // picking up tomorrow's publication and the midnight rollover.
+  Timer {
+    interval: 30 * 60 * 1000
+    running: true
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.refresh()
+  }
+
+  // The active quarter changes without any fetch: track the clock.
+  Timer {
+    interval: 30 * 1000
+    running: true
+    repeat: true
+    onTriggered: {
+      root.nowMs = Date.now()
+      // Past midnight yesterday's "today" is stale: roll over.
+      if (root.todayEntries.length > 0 && root.todayEntries[root.todayEntries.length - 1].endMs < root.nowMs)
+        root.refresh()
+    }
+  }
+
+  IpcHandler {
+    target: root.ipcTarget
+
+    function open(): void { root.openFromHotkey() }
+    function close(): void { root.close() }
+    function show(): void { root.openFromHotkey() }
+    function hide(): void { root.close() }
+    function toggle(): void { root.toggle() }
+  }
+
+  component PriceChart: Item {
+    id: chart
+    property var hours: []
+    property var dayStats: null
+    property bool markNow: false
+
+    property int hoveredIndex: -1
+    readonly property var hovered: hoveredIndex >= 0 && hoveredIndex < hours.length ? hours[hoveredIndex] : null
+
+    width: parent.width
+    height: Style.space(96)
+
+    Row {
+      id: barsRow
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
+      anchors.bottomMargin: Style.space(18)
+      spacing: Style.space(2)
+
+      Repeater {
+        model: chart.hours
+
+        Item {
+          required property var modelData
+          required property int index
+          width: (barsRow.width - (chart.hours.length - 1) * barsRow.spacing) / Math.max(1, chart.hours.length)
+          height: barsRow.parent.height - Style.space(18)
+
+          readonly property bool isNow: chart.markNow && root.nowMs >= modelData.startMs && root.nowMs < modelData.endMs
+          readonly property int level: Model.levelFor(modelData.sek, chart.dayStats)
+
+          Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: Math.max(Style.space(3), parent.height * (modelData.sek / root.chartMax))
+            radius: Style.space(1)
+            color: root.levelColor(parent.level)
+            opacity: parent.isNow || chart.hoveredIndex === parent.index ? 1.0 : (parent.level === 1 ? 0.45 : 0.8)
+
+            Rectangle {
+              visible: parent.parent.isNow
+              anchors.top: parent.top
+              anchors.topMargin: -Style.space(6)
+              anchors.horizontalCenter: parent.horizontalCenter
+              width: Style.space(4)
+              height: Style.space(4)
+              radius: Style.space(2)
+              color: Color.accent
+            }
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            onEntered: chart.hoveredIndex = index
+            onExited: if (chart.hoveredIndex === index) chart.hoveredIndex = -1
+          }
+        }
+      }
+    }
+
+    Text {
+      anchors.left: parent.left
+      anchors.bottom: parent.bottom
+      text: chart.hovered
+        ? (String(chart.hovered.hour).length < 2 ? "0" : "") + chart.hovered.hour + ":00  " + root.fmt(chart.hovered.sek)
+        : "00                    06                    12                    18                    23"
+      color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+      font.family: root.bar ? root.bar.fontFamily : Style.font.family
+      font.pixelSize: Style.font.caption
+    }
+  }
+
+  KeyboardPanel {
+    id: panel
+    anchorItem: root.anchorItem
+    owner: root.barIdentity
+    bar: root.bar
+    open: root.opened
+    centerOnBar: true
+    focusTarget: keyCatcher
+    contentWidth: panel.fittedContentWidth(Style.space(470))
+    contentHeight: panel.fittedContentHeight(priceColumn.implicitHeight)
+
+    PanelKeyCatcher {
+      id: keyCatcher
+      anchors.fill: parent
+      onCloseRequested: root.close()
+      onTabRequested: function(direction) { root.switchPanel(direction) }
+
+      Column {
+        id: priceColumn
+        width: parent.width
+        spacing: Style.space(14)
+
+        // ---- Hero: current price + zone, day stats on the right.
+        Item {
+          width: parent.width
+          height: Math.max(heroLeft.height, heroRight.height)
+
+          Column {
+            id: heroLeft
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(16)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(2)
+
+            Text {
+              text: root.current ? root.fmt(root.current.sek) : "—"
+              color: root.levelColor(root.currentLevel)
+              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.pixelSize: 36
+              font.bold: true
+            }
+            Text {
+              text: root.zone + " · SPOT / kWh"
+              color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.4)
+              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.pixelSize: Style.font.caption
+              font.letterSpacing: 1
+            }
+          }
+
+          Row {
+            id: heroRight
+            anchors.right: parent.right
+            anchors.rightMargin: Style.space(20)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(24)
+
+            Column {
+              spacing: Style.space(5)
+              Text {
+                text: "LOW"
+                color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                font.letterSpacing: 1
+              }
+              Text {
+                text: root.todayStats ? root.fmt(root.todayStats.min) : "—"
+                color: root.cheapColor
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.body
+              }
+            }
+
+            Column {
+              spacing: Style.space(5)
+              Text {
+                text: "AVG"
+                color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                font.letterSpacing: 1
+              }
+              Text {
+                text: root.todayStats ? root.fmt(root.todayStats.avg) : "—"
+                color: root.bar ? root.bar.foreground : Style.palette.foreground
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.body
+              }
+            }
+
+            Column {
+              spacing: Style.space(5)
+              Text {
+                text: "HIGH"
+                color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                font.letterSpacing: 1
+              }
+              Text {
+                text: root.todayStats ? root.fmt(root.todayStats.max) : "—"
+                color: root.expensiveColor
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.body
+              }
+            }
+          }
+        }
+
+        Text {
+          visible: root.todayEntries.length === 0
+          anchors.horizontalCenter: parent.horizontalCenter
+          text: "Fetching prices…"
+          color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.bodySmall
+          font.italic: true
+        }
+
+        // ---- Today's chart.
+        Column {
+          visible: root.todayHours.length > 0
+          width: parent.width - Style.space(32)
+          anchors.horizontalCenter: parent.horizontalCenter
+          spacing: Style.space(6)
+
+          Text {
+            text: "TODAY"
+            color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.caption
+            font.letterSpacing: 1
+          }
+
+          PriceChart {
+            hours: root.todayHours
+            dayStats: root.todayStats
+            markNow: true
+          }
+        }
+
+        // ---- Tomorrow, once Nord Pool has published (~13:00).
+        Column {
+          visible: root.tomorrowHours.length > 0
+          width: parent.width - Style.space(32)
+          anchors.horizontalCenter: parent.horizontalCenter
+          spacing: Style.space(6)
+
+          Text {
+            text: "TOMORROW"
+            color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.caption
+            font.letterSpacing: 1
+          }
+
+          PriceChart {
+            hours: root.tomorrowHours
+            dayStats: root.tomorrowStats
+          }
+        }
+
+        Text {
+          visible: root.todayHours.length > 0 && root.tomorrowHours.length === 0
+          anchors.horizontalCenter: parent.horizontalCenter
+          text: "Tomorrow's prices are published around 13:00"
+          color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.6)
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.caption
+          font.italic: true
+        }
+
+        Text {
+          anchors.horizontalCenter: parent.horizontalCenter
+          text: "Elpriser tillhandahålls av elprisetjustnu.se"
+          color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.8)
+          font.family: root.bar ? root.bar.fontFamily : Style.font.family
+          font.pixelSize: Style.font.caption
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,42 @@
+# Elpris for Omarchy
+
+**Nord Pool electricity spot price, in your bar.** The current price at a
+glance, color-coded against today's range, with an hourly chart for today and
+tomorrow so you know when to run the dishwasher.
+
+## Features
+
+- Current spot price in the bar, updated every 15 minutes (market resolution)
+- Click for a panel with today's hourly price chart — cheap hours green,
+  expensive hours orange, a dot marking the current hour
+- Tomorrow's chart appears automatically once Nord Pool publishes (~13:00)
+- Today's low / average / high at a glance
+- Hover any bar to read the exact hour and price
+- All four Swedish price zones (SE1–SE4), configurable in settings
+- Prices in kr or öre
+- Zero configuration to start, no API key, no account — data from the free
+  [elprisetjustnu.se](https://www.elprisetjustnu.se) API
+- Theme aware — follows your Omarchy theme like the built-in widgets
+
+## Install
+
+```bash
+omarchy plugin add https://github.com/antoniowav/omarchy-elpris.git --enable
+```
+
+## Configure
+
+Open the bar settings for the widget to set your price zone (SE1 Luleå,
+SE2 Sundsvall, SE3 Stockholm, SE4 Malmö) and unit (`kr` or `öre`).
+
+Middle-click the widget to force a refresh.
+
+## Data
+
+Prices come from the free [elprisetjustnu.se](https://www.elprisetjustnu.se)
+API. Elpriser tillhandahålls av Elpriser just nu. Prices are spot prices
+excluding VAT, grid fees, and your supplier's markup.
+
+## License
+
+MIT

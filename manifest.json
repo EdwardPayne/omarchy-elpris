@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.antoniowav.elpris",
+  "name": "Elpris",
+  "version": "0.1.0",
+  "author": "Antonio Piattelli",
+  "license": "MIT",
+  "description": "Nord Pool electricity spot price in the bar. Hourly chart, cheapest hours at a glance.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Elpris",
+    "description": "Current electricity spot price with an hourly chart for today and tomorrow.",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "zone": "SE3",
+      "unit": "kr"
+    },
+    "schema": [
+      {
+        "key": "zone",
+        "type": "string",
+        "label": "Price zone (SE1-SE4)",
+        "defaultValue": "SE3"
+      },
+      {
+        "key": "unit",
+        "type": "string",
+        "label": "Unit (kr or öre)",
+        "defaultValue": "kr"
+      }
+    ]
+  }
+}
