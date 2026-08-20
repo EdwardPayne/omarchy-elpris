@@ -77,7 +77,7 @@ Panel {
   function levelColor(level) {
     if (level === 0) return cheapColor
     if (level === 2) return expensiveColor
-    return root.bar ? root.bar.foreground : Style.palette.foreground
+    return root.bar ? root.bar.foreground : Color.foreground
   }
 
   function fmt(sek) {
@@ -238,7 +238,7 @@ Panel {
       text: chart.hovered
         ? (String(chart.hovered.hour).length < 2 ? "0" : "") + chart.hovered.hour + ":00  " + root.fmt(chart.hovered.sek)
         : "00                    06                    12                    18                    23"
-      color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+      color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.5)
       font.family: root.bar ? root.bar.fontFamily : Style.font.family
       font.pixelSize: Style.font.caption
     }
@@ -287,7 +287,7 @@ Panel {
             }
             Text {
               text: root.zone + " · SPOT / kWh"
-              color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.4)
+              color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.4)
               font.family: root.bar ? root.bar.fontFamily : Style.font.family
               font.pixelSize: Style.font.caption
               font.letterSpacing: 1
@@ -305,7 +305,7 @@ Panel {
               spacing: Style.space(5)
               Text {
                 text: "LOW"
-                color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+                color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.5)
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
                 font.pixelSize: Style.font.bodySmall
                 font.letterSpacing: 1
@@ -322,14 +322,14 @@ Panel {
               spacing: Style.space(5)
               Text {
                 text: "AVG"
-                color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+                color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.5)
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
                 font.pixelSize: Style.font.bodySmall
                 font.letterSpacing: 1
               }
               Text {
                 text: root.todayStats ? root.fmt(root.todayStats.avg) : "—"
-                color: root.bar ? root.bar.foreground : Style.palette.foreground
+                color: root.bar ? root.bar.foreground : Color.foreground
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
                 font.pixelSize: Style.font.body
               }
@@ -339,7 +339,7 @@ Panel {
               spacing: Style.space(5)
               Text {
                 text: "HIGH"
-                color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+                color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.5)
                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
                 font.pixelSize: Style.font.bodySmall
                 font.letterSpacing: 1
@@ -358,7 +358,7 @@ Panel {
           visible: root.todayEntries.length === 0
           anchors.horizontalCenter: parent.horizontalCenter
           text: "Fetching prices…"
-          color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+          color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.5)
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.bodySmall
           font.italic: true
@@ -373,7 +373,7 @@ Panel {
 
           Text {
             text: "TODAY"
-            color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+            color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.5)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption
             font.letterSpacing: 1
@@ -395,7 +395,7 @@ Panel {
 
           Text {
             text: "TOMORROW"
-            color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.5)
+            color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.5)
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
             font.pixelSize: Style.font.caption
             font.letterSpacing: 1
@@ -411,7 +411,7 @@ Panel {
           visible: root.todayHours.length > 0 && root.tomorrowHours.length === 0
           anchors.horizontalCenter: parent.horizontalCenter
           text: "Tomorrow's prices are published around 13:00"
-          color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.6)
+          color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.6)
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.caption
           font.italic: true
@@ -420,7 +420,7 @@ Panel {
         Text {
           anchors.horizontalCenter: parent.horizontalCenter
           text: "Elpriser tillhandahålls av elprisetjustnu.se"
-          color: Qt.darker(root.bar ? root.bar.foreground : Style.palette.foreground, 1.8)
+          color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.8)
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
           font.pixelSize: Style.font.caption
         }
