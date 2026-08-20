@@ -29,6 +29,7 @@ Panel {
   }
 
   function close() {
+    root.editingSettings = false
     root.controller.hide()
   }
 
@@ -41,6 +42,38 @@ Panel {
     if (root.bar && typeof root.bar.switchPanelFrom === "function")
       return root.bar.switchPanelFrom(root.barIdentity, direction)
     return false
+  }
+
+  // In-panel settings editor, persisted through the shell's inline entry
+  // update — the same write path `omarchy bar set` uses.
+  property bool editingSettings: false
+  property string editZone: "SE3"
+  property string editUnit: "kr"
+
+  function persistSettings(values) {
+    var entry = { id: root.moduleName }
+    for (var existing in root.settings) if (existing !== "id") entry[existing] = root.settings[existing]
+    for (var key in values) entry[key] = values[key]
+
+    root.settings = entry
+    if (root.hostWidget && "settings" in root.hostWidget) root.hostWidget.settings = entry
+    if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+      root.bar.shell.updateEntryInline(root.moduleName, entry)
+  }
+
+  function startEditingSettings() {
+    editZone = root.zone
+    editUnit = root.ore ? "öre" : "kr"
+    editingSettings = true
+  }
+
+  function cancelEditingSettings() {
+    editingSettings = false
+  }
+
+  function saveSettings() {
+    persistSettings({ zone: editZone, unit: editUnit })
+    editingSettings = false
   }
 
   // Raw quarter-hour entries per day. Kept on failure so stale prices stay
@@ -294,8 +327,36 @@ Panel {
             }
           }
 
+          Rectangle {
+            width: Style.space(24)
+            height: Style.space(24)
+            anchors.right: parent.right
+            anchors.rightMargin: Style.space(8)
+            anchors.top: parent.top
+            radius: Math.min(4, Style.cornerRadius)
+            color: gearArea.containsMouse ? Style.hoverFillFor(root.bar ? root.bar.foreground : Color.foreground, Color.accent) : "transparent"
+            z: 2
+
+            Text {
+              anchors.centerIn: parent
+              text: root.editingSettings ? "✕" : "\uf013"
+              color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.4)
+              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.pixelSize: Style.font.bodySmall
+            }
+
+            MouseArea {
+              id: gearArea
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.editingSettings ? root.cancelEditingSettings() : root.startEditingSettings()
+            }
+          }
+
           Row {
             id: heroRight
+            visible: !root.editingSettings
             anchors.right: parent.right
             anchors.rightMargin: Style.space(20)
             anchors.verticalCenter: parent.verticalCenter
@@ -354,8 +415,144 @@ Panel {
           }
         }
 
+        // ---- Settings editor: zone and unit pills.
+        Column {
+          visible: root.editingSettings
+          width: parent.width - Style.space(32)
+          anchors.horizontalCenter: parent.horizontalCenter
+          spacing: Style.space(10)
+
+          Column {
+            width: parent.width
+            spacing: Style.space(4)
+
+            Text {
+              text: "PRICE ZONE"
+              color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.5)
+              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.pixelSize: Style.font.caption
+              font.letterSpacing: 1
+            }
+
+            Row {
+              width: parent.width
+              spacing: Style.space(8)
+
+              Repeater {
+                model: ["SE1", "SE2", "SE3", "SE4"]
+
+                Rectangle {
+                  required property var modelData
+                  readonly property bool active: root.editZone === modelData
+                  width: (parent.width - 3 * Style.space(8)) / 4
+                  height: Style.space(26)
+                  radius: Style.cornerRadius
+                  color: active ? Color.accent : "transparent"
+                  border.width: active ? 0 : 1
+                  border.color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.8)
+
+                  Text {
+                    anchors.centerIn: parent
+                    text: parent.modelData
+                    color: parent.active ? Color.background : Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.3)
+                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.letterSpacing: 1
+                  }
+
+                  MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.editZone = parent.modelData
+                  }
+                }
+              }
+            }
+
+            Text {
+              text: "SE1 Luleå · SE2 Sundsvall · SE3 Stockholm/Göteborg · SE4 Malmö"
+              color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.7)
+              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.pixelSize: Style.font.caption
+            }
+          }
+
+          Column {
+            width: parent.width
+            spacing: Style.space(4)
+
+            Text {
+              text: "UNIT"
+              color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.5)
+              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.pixelSize: Style.font.caption
+              font.letterSpacing: 1
+            }
+
+            Row {
+              width: parent.width
+              spacing: Style.space(8)
+
+              Repeater {
+                model: [{ key: "kr", title: "KR / KWH" }, { key: "öre", title: "ÖRE / KWH" }]
+
+                Rectangle {
+                  required property var modelData
+                  readonly property bool active: root.editUnit === modelData.key
+                  width: (parent.width - Style.space(8)) / 2
+                  height: Style.space(26)
+                  radius: Style.cornerRadius
+                  color: active ? Color.accent : "transparent"
+                  border.width: active ? 0 : 1
+                  border.color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.8)
+
+                  Text {
+                    anchors.centerIn: parent
+                    text: parent.modelData.title
+                    color: parent.active ? Color.background : Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.3)
+                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.letterSpacing: 1
+                  }
+
+                  MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.editUnit = parent.modelData.key
+                  }
+                }
+              }
+            }
+          }
+
+          Rectangle {
+            width: parent.width
+            height: Style.space(28)
+            radius: Style.cornerRadius
+            color: saveArea.containsMouse ? Qt.darker(Color.accent, 1.15) : Color.accent
+
+            Text {
+              anchors.centerIn: parent
+              text: "SAVE"
+              color: Color.background
+              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+              font.letterSpacing: 1
+            }
+
+            MouseArea {
+              id: saveArea
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.saveSettings()
+            }
+          }
+        }
+
         Text {
-          visible: root.todayEntries.length === 0
+          visible: !root.editingSettings && root.todayEntries.length === 0
           anchors.horizontalCenter: parent.horizontalCenter
           text: "Fetching prices…"
           color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.5)
@@ -366,7 +563,7 @@ Panel {
 
         // ---- Today's chart.
         Column {
-          visible: root.todayHours.length > 0
+          visible: !root.editingSettings && root.todayHours.length > 0
           width: parent.width - Style.space(32)
           anchors.horizontalCenter: parent.horizontalCenter
           spacing: Style.space(6)
@@ -388,7 +585,7 @@ Panel {
 
         // ---- Tomorrow, once Nord Pool has published (~13:00).
         Column {
-          visible: root.tomorrowHours.length > 0
+          visible: !root.editingSettings && root.tomorrowHours.length > 0
           width: parent.width - Style.space(32)
           anchors.horizontalCenter: parent.horizontalCenter
           spacing: Style.space(6)
@@ -408,7 +605,7 @@ Panel {
         }
 
         Text {
-          visible: root.todayHours.length > 0 && root.tomorrowHours.length === 0
+          visible: !root.editingSettings && root.todayHours.length > 0 && root.tomorrowHours.length === 0
           anchors.horizontalCenter: parent.horizontalCenter
           text: "Tomorrow's prices are published around 13:00"
           color: Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.6)

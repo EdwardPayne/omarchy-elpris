@@ -37,8 +37,14 @@ Omarchy Quattro shell. No accounts, no API keys, no telemetry.
 
 ## Configure
 
-Open the bar settings for the widget to set your price zone (SE1 Luleå,
-SE2 Sundsvall, SE3 Stockholm, SE4 Malmö) and unit (`kr` or `öre`).
+Click the widget, then the gear in the panel's top-right corner: pick your
+price zone (SE1 Luleå, SE2 Sundsvall, SE3 Stockholm/Göteborg, SE4 Malmö)
+and unit (kr or öre), then save. Settings can also be set from a terminal:
+
+```bash
+omarchy bar set io.github.antoniowav.elpris zone SE4
+omarchy bar set io.github.antoniowav.elpris unit öre
+```
 
 Middle-click the widget to force a refresh.
 
