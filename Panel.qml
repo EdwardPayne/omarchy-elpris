@@ -117,15 +117,24 @@ Panel {
     return Model.fmt(sek, ore)
   }
 
+  // Static curl pipeline: the URL enters via Process.environment and head -c
+  // caps how much of a hostile response StdioCollector will buffer.
+  readonly property string curlGet:
+    "curl -fsS --max-time 10 --proto =https" +
+    " --variable %REQ_URL --expand-url \"{{REQ_URL}}\"" +
+    " | head -c 524288"
+
   function refresh() {
     todayRetries = 0
     nowMs = Date.now()
     if (!todayProc.running) {
-      todayProc.command = ["curl", "-fsS", "--max-time", "10", Model.apiUrl(zone, new Date())]
+      todayProc.environment = { REQ_URL: Model.apiUrl(zone, new Date()) }
+      todayProc.command = ["bash", "-c", curlGet]
       todayProc.running = true
     }
     if (!tomorrowProc.running) {
-      tomorrowProc.command = ["curl", "-fsS", "--max-time", "10", Model.apiUrl(zone, new Date(Date.now() + 86400000))]
+      tomorrowProc.environment = { REQ_URL: Model.apiUrl(zone, new Date(Date.now() + 86400000)) }
+      tomorrowProc.command = ["bash", "-c", curlGet]
       tomorrowProc.running = true
     }
   }
