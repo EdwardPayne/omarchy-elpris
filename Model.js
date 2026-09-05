@@ -99,7 +99,10 @@ function normalizedDecimals(value) {
 function oreText(sek, decimals) {
   var d = normalizedDecimals(decimals)
   var scaled = sek * 100
-  var body = d > 0 ? Math.abs(scaled).toFixed(d) : String(Math.round(Math.abs(scaled)))
+  // Round before taking the magnitude, so whole-öre rounding stays exactly
+  // what it has always been: Math.round(-1.5) is -1, but rounding the
+  // magnitude instead would give -2.
+  var body = d > 0 ? Math.abs(scaled).toFixed(d) : String(Math.abs(Math.round(scaled)))
   return (scaled < 0 ? "-" : "") + body.replace(".", ",")
 }
 
